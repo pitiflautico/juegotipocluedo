@@ -44,7 +44,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleCreateRoom(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: any,
-  ) {
+  ): Promise<{ success: boolean; data: any } | void> {
     try {
       const room = await this.roomService.createRoom(data);
 

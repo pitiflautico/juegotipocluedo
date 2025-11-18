@@ -57,7 +57,7 @@ export class PlayerService {
     const player = await this.getPlayer(roomId, socketId);
 
     // Set cooldown based on role
-    const cooldowns = {
+    const cooldowns: Record<string, number> = {
       detective: 3,
       scientist: 4,
       visionary: 5,
