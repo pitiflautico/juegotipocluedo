@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterRequest;
 use App\Models\User;
 use App\Models\PlayerStats;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -14,52 +17,49 @@ class AuthController extends Controller
     /**
      * Register a new user.
      */
-    public function register(Request $request)
+    public function register(RegisterRequest $request): JsonResponse
     {
-        $request->validate([
-            'name' => 'required|string|max:100',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-        ]);
+        try {
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+            ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
+            // Create initial stats
+            PlayerStats::create([
+                'user_id' => $user->id,
+            ]);
 
-        // Create initial stats
-        PlayerStats::create([
-            'user_id' => $user->id,
-        ]);
+            $token = $user->createToken('auth_token')->plainTextToken;
 
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'success' => true,
-            'message' => 'User registered successfully',
-            'data' => [
-                'user' => $user,
-                'token' => $token,
-            ],
-        ], 201);
+            return response()->json([
+                'success' => true,
+                'message' => 'Usuario registrado exitosamente',
+                'data' => [
+                    'user' => $user->load('stats'),
+                    'token' => $token,
+                ],
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al registrar usuario',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
      * Login user and create token.
      */
-    public function login(Request $request)
+    public function login(LoginRequest $request): JsonResponse
     {
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-        ]);
-
         $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
+                'email' => ['Las credenciales proporcionadas son incorrectas.'],
             ]);
         }
 
@@ -70,9 +70,9 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Login successful',
+            'message' => 'Login exitoso',
             'data' => [
-                'user' => $user,
+                'user' => $user->load('stats'),
                 'token' => $token,
             ],
         ]);
@@ -81,20 +81,20 @@ class AuthController extends Controller
     /**
      * Logout user (revoke token).
      */
-    public function logout(Request $request)
+    public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
             'success' => true,
-            'message' => 'Logged out successfully',
+            'message' => 'Sesión cerrada exitosamente',
         ]);
     }
 
     /**
      * Get authenticated user.
      */
-    public function me(Request $request)
+    public function me(Request $request): JsonResponse
     {
         $user = $request->user()->load('stats');
 
